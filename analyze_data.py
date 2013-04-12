@@ -4,6 +4,7 @@ from ipdb import set_trace as st
 import cdms2 as cdms
 import cdutil
 
+ion()
 # Functions#{{{
 def monthAve(x):
     s = list( x.shape )
@@ -13,14 +14,11 @@ def monthAve(x):
         out[i,:,:] = x[i::12,:,:].mean(axis=0)
     return out
 
-def seasonAve(x):
-    pass
 
 def lat_pressure_contour_cdms(x,tit=None,nlev=None):
     lat = x.getLatitude().getValue()
     lev = x.getLevel().getValue()
     plotme = squeeze(x.getValue())
-    st()
 
     lat_pressure_contour(lat,lev,plotme,tit=tit,nlev=nlev)
 
@@ -51,7 +49,6 @@ fs0  = cdms.open('warmsun.nc')
 fc  = cdms.open('control.nc')
 fstd = cdms.open('standard.nc')
 
-# Global Energy Budget
 var_names = dict((
     ( 'rlut' , 'toa_net_longwave_flux'),
     ( 'rst'  , 'toa_net_shortwave_flux'),
@@ -60,43 +57,174 @@ var_names = dict((
     ( 'hfss' , 'surface_sensible_heat_flux'),
     ( 'hfls' , 'surface_latent_heat_flux'))
 )
+# Global Energy Budget#{{{
+if False:
 
-var = []
-for key in var_names:
-    td = {}
-    tt = cdutil.averager(fc02(key),axis="xy",weights="generate")
-    td = (key,{'val':tt,'name':key,'title':var_names[key]})
-    var.append(td)
+    var = []
+    for key in var_names:
+        td = {}
+        tt = cdutil.averager(fc02(key),axis="xy",weights="generate")
+        cdutil.setTimeBoundsMonthly(tt)
+        tt = cdutil.YEAR(tt)
+        td = (key,{'val':tt,'name':key,'title':var_names[key]})
+        var.append(td)
 
-var = dict(var)
-figure(figsize=(8,6))
-net = var['rlut']['val']+var['rst']['val']
-plot(net.getValue())
-
-# lat = fc02.variables['lat'][:]
-# lon = fc02.variables['lon'][:]
-# lev = fc02.variables['lev'][:]
-# lats = lat.shape[0]
-# lons = lon.shape[0]
-
-# Global Energy Budget
-# create figure, axes instances.
+    var = dict(var)
 
 
+    # Top of Atmospher Global Energy Budget
+    if False:
+        toa_lw = var['rlut']['val']
+        toa_sw = var['rst']['val']
 
-# from mpl_toolkits.basemap import Basemap
-# fig = plt.figure(figsize=(8,6))
-# ax = fig.add_axes([0.05,0.05,0.9,0.9])
-# m = Basemap(projection='robin',lat_0 = 90,lon_0=lon.mean(),resolution='c')
-# x, y = m(*np.meshgrid(lon, lat))
-# im1 = m.pcolor(x,y,fc02.variables['zg'][0,2,:,:],cmap=plt.cm.jet)
-# m.drawcoastlines()
-# # m.fillcontinents()
-# m.drawmapboundary()
-# m.drawparallels(np.arange(-90.,120.,30.))
-# m.drawmeridians(np.arange(0.,420.,60.))
-# cb = m.colorbar(im1,"bottom", size="5%", pad="2%")
+        net = toa_lw + toa_sw
+        fig = figure(figsize=(15,5))
+        fig.suptitle('TOA Energy Budget Warm Sun')
+        subplot(131)
+        plot(toa_lw.getValue())
+        title('TOA LW Flux')
+        ylabel('W/m^2')
+        xlabel('Year')
+        subplot(132)
+        plot(toa_sw.getValue())
+        title('TOA SW Flux')
+        xlabel('Year')
+        subplot(133)
+        plot(net.getValue())
+        title('TOA Net Flux')
+        xlabel('Year')
+        savefig('/Users/noah/Desktop/plot.png',bbox_inches='tight')
+
+    # Surface Energy Budget
+    if False:
+        rls = var['rls']['val']
+        rss = var['rss']['val']
+        hfss = var['hfss']['val']
+        hfls = var['hfls']['val']
+
+        net = rls + rss + hfss + hfls
+
+        fig = figure(figsize=(8,10))
+        fig.suptitle('Surface Budget C02 x 2 ')
+        subplot(321)
+        plot(rls.copy())
+        title('Surface LW')
+        subplot(322)
+        plot(rss.copy())
+        title('Surface SW')
+        subplot(323)
+        plot(hfss.copy())
+        title('Surface Sensible')
+        subplot(324)
+        plot(hfss.copy())
+        title('Surface Latent')
+        subplot(325)
+        plot (net.copy())
+        title('net')
+
+        savefig('/Users/noah/Desktop/plot.png',bbox_inches='tight')
+
+        pass
+#}}}
+
+# Latidudinal Energy Budget
+if True:
+    var = []
+    run_title = 'C02 x 2'
+    for key in var_names:
+        tt = cdutil.averager(fc02(key),axis="x",weights="generate")
+        cdutil.setTimeBoundsMonthly(tt)
+        tt = cdutil.YEAR(tt)[-10:]
+        tt = cdutil.YEAR.climatology(tt)
+        td = (key,tt)
+        var.append(td)
+
+    var = dict(var)
+    lats = tt.getLatitude()[:]
+    gv = lambda tt : squeeze(tt.getValue().copy())
+    ave = lambda tt : cdutil.averager(tt,axis="y",weights="generate")
+
+    def Net2Xport(net):
+        tmp = net.clone()
+        tmp2 = net.clone()
+        tmp[tmp<0]=0
+        tmp2[tmp2>0]=0
+        return min(abs(ave(tmp)),abs(ave(tmp2)))
+    # TOA Budget
+    rst  = gv(var['rst'])
+    rlut = gv(var['rlut'])
+    fig = figure(figsize=(6,10))
+    subplot(311)
+    plot(lats,rst,'r')
+    plot(lats,-rlut,'b')
+
+    net = var['rst']+var['rlut']
+    net_toa = net.clone()
+    msk = gv(net)>0
+    fill_between(lats[msk ],rst[msk],-rlut[msk],color=(.8,.8,.8))
+
+    total_trans = Net2Xport(net_toa)
+    legend(('Incoming SW','Outgoing LW'),loc=8)
+    title('%s TOA Total Xport = %f'%(run_title,total_trans))
+    ylabel('Watts per Square Meter')
+
+    # Surface Budget
+    rls = var['rls']
+    rss = var['rss']
+    hfss = var['hfss']
+    hfls = var['hfls']
+
+    net_surf = rls + rss + hfss + hfls
+    ocean_xport = Net2Xport(net_surf)
+
+
+    subplot(312)
+    plot(lats,gv(net_surf))
+    title('%s Net Surface Flux ; Ocean Xport = %.3f'%(run_title,ocean_xport))
+    ylabel('Watts per Square Meter')
+
+    # Atmo Budget
+    subplot(313)
+    atmo_xport = Net2Xport(net_toa-net_surf)
+    plot(lats,gv(net_toa-net_surf))
+    xlabel('latitude')
+    ylabel('Watts per Square Meter')
+    title('%s Atmo Budget ; Atmo Xport = %.3f'%(run_title,total_trans-ocean_xport))
+    savefig('/Users/noah/Desktop/%s Lat Budget.png'%run_title)
+
+
+
+
+
+
+
+
+if False:
+
+    from mpl_toolkits.basemap import Basemap,addcyclic,shiftgrid
+
+    var = fc02.variables['zg']
+    longitude = var.getLongitude()[:]
+    lat = var.getLatitude()[:]
+    lon0 = 0
+
+    vargrid,lon= shiftgrid(180.+lon0,var.getValue()[0,2,:,:],longitude,start=False)
+    vargrid,lon= addcyclic(vargrid,lon)
+
+    fig = plt.figure(figsize=(8,6))
+    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    m = Basemap(projection='robin',lat_0 = 0,lon_0=lon0,resolution='c')
+    x, y = m(*np.meshgrid(lon[:], lat[:]))
+    im1 = m.pcolor(x,y,vargrid,cmap=plt.cm.jet)
+    m.drawcoastlines()
+    # m.fillcontinents()
+    m.drawmapboundary()
+    m.drawparallels(np.arange(-90.,120.,30.))
+    m.drawmeridians(np.arange(0.,420.,60.))
+    # cb = m.colorbar(im1,"bottom", size="5%", pad="2%")
+
 # Response Diagnostic#{{{
+
 if False:
     def zon_p_plots(var,dsetA,dsetB,title="",nlev=None):
         # Average Zonally over last 20 years
@@ -116,13 +244,11 @@ if False:
         plotme = cdutil.JJA.climatology(c)
         lat_pressure_contour_cdms(plotme,tit='%s JJA'%title,nlev=nlev)
 
-    c = zon_p_plots('ta',fc,fc02,title="Double C02 Temperature",nlev=arange(-5,9))
+    zon_p_plots('ta',fc,fc02,title="Double C02 Temperature",nlev=arange(-5,9))
     zon_p_plots('ta',fc,fs0,title="S0 + 2% Temperature",nlev= arange(-5,9))
     zon_p_plots('ua',fc,fc02,title="Double C02 U")
     zon_p_plots('ua',fc,fs0,title="S0 + 2% U")
     zon_p_plots('hus',fc,fc02,title="Double C02 q")
     zon_p_plots('hus',fc,fs0,title="S0 + 2% q")
 #}}}
-
-show()
 
