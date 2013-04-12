@@ -4,7 +4,6 @@ from ipdb import set_trace as st
 import cdms2 as cdms
 import cdutil
 
-ion()
 # Functions#{{{
 def monthAve(x):
     s = list( x.shape )
@@ -127,8 +126,8 @@ if False:
         pass
 #}}}
 
-# Latidudinal Energy Budget
-if True:
+# Latidudinal Energy Budget#{{{
+if False:
     var = []
     run_title = 'C02 x 2'
     for key in var_names:
@@ -191,31 +190,41 @@ if True:
     ylabel('Watts per Square Meter')
     title('%s Atmo Budget ; Atmo Xport = %.3f'%(run_title,total_trans-ocean_xport))
     savefig('/Users/noah/Desktop/%s Lat Budget.png'%run_title)
+#}}}
+
+if True:
+
+    from mpl_toolkits.basemap import Basemap,addcyclic,shiftgrid,cm
+
+    f = fc02
+
+    net_surf = f('rls')+f('rss')+f('hfss')+f('hfls')
+    net_toa  = f('rlut')+f('rst')
+
+    cdutil.setTimeBoundsMonthly(net_surf)
+    cdutil.setTimeBoundsMonthly(net_toa)
+
+    def Last10Ave(var):
+        return cdutil.YEAR.climatology(cdutil.YEAR(var)[-10:])
+
+    net_surf = Last10Ave(net_surf)
+    net_toa = Last10Ave(net_toa)
 
 
-
-
-
-
-
-
-if False:
-
-    from mpl_toolkits.basemap import Basemap,addcyclic,shiftgrid
-
-    var = fc02.variables['zg']
+    var = net_toa
     longitude = var.getLongitude()[:]
     lat = var.getLatitude()[:]
-    lon0 = 0
+    lon0 = -180
 
-    vargrid,lon= shiftgrid(180.+lon0,var.getValue()[0,2,:,:],longitude,start=False)
+    vargrid,lon= shiftgrid(180.+lon0,squeeze(var.getValue()),longitude,start=False)
     vargrid,lon= addcyclic(vargrid,lon)
 
     fig = plt.figure(figsize=(8,6))
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     m = Basemap(projection='robin',lat_0 = 0,lon_0=lon0,resolution='c')
     x, y = m(*np.meshgrid(lon[:], lat[:]))
-    im1 = m.pcolor(x,y,vargrid,cmap=plt.cm.jet)
+    im1 = m.pcolor(x,y,vargrid,cmap=plt.cm.RdBu,vmin=-100,vmax=100)
+    colorbar()
     m.drawcoastlines()
     # m.fillcontinents()
     m.drawmapboundary()
@@ -251,4 +260,4 @@ if False:
     zon_p_plots('hus',fc,fc02,title="Double C02 q")
     zon_p_plots('hus',fc,fs0,title="S0 + 2% q")
 #}}}
-
+show()
